@@ -285,6 +285,42 @@ export async function put(source, path, content = '') {
   return await resourceAction(source, path, 'PUT', content)
 }
 
+export function downloadFilesIndividually(files, shareHash = "") {
+  if (!Array.isArray(files) || files.length < 2) {
+    throw new Error("Individual downloads require at least two files");
+  }
+  if (files.some((file) => !file || file.isDir || file.type === "directory")) {
+    throw new Error("Individual downloads support files only");
+  }
+
+  if (!shareHash && files.some((file) => !file.source)) {
+    throw new Error("File source is required for downloads");
+  }
+
+  // Keep each request as a normal browser download so large files are streamed
+  // by the browser instead of being buffered into JavaScript memory. Opening
+  // each link in its own browsing context prevents later downloads replacing
+  // earlier navigations and lets the browser apply its multiple-download policy.
+  for (const file of files) {
+    const params = {
+      file: file.path,
+      ...(shareHash && { hash: shareHash }),
+      ...(!shareHash && { source: file.source }),
+      sessionId: state.sessionId,
+    };
+    const apiPath = getApiPath("resources/download", params, false, !!shareHash);
+    const link = document.createElement("a");
+    link.href = window.origin + apiPath;
+    link.download = file.name || file.path.slice(file.path.lastIndexOf("/") + 1);
+    link.target = "_blank";
+    link.style.display = "none";
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    window.setTimeout(() => link.remove(), 1000);
+  }
+}
+
 export async function download(format, files, shareHash = "") {
   const downloadChunkSizeMb = state.user?.fileLoading?.downloadChunkSizeMb || 0
   const sizeThreshold = downloadChunkSizeMb * 1024 * 1024

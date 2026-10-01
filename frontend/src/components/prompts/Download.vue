@@ -13,6 +13,16 @@
     >
       {{ ext }}
     </button>
+    <button
+      v-if="allowIndividual"
+      type="button"
+      class="button button--block"
+      :aria-label="$t('general.download')"
+      @click="handleFormatSelect('individual')"
+      v-focus
+    >
+      {{ $t('general.download') }}
+    </button>
   </div>
   <div v-if="!hasDownloads && (!currentPrompt?.confirm)" class="card-content lonely-message">
     <span>{{ $t("files.lonely") }}</span>
@@ -116,6 +126,9 @@ export default {
     },
     hasDownloads() {
       return (downloadManager.queue.length || 0) > 0;
+    },
+    allowIndividual() {
+      return this.currentPrompt?.props?.allowIndividual === true;
     },
     hasClearable() {
       if (!downloadManager.queue) {

@@ -251,3 +251,25 @@ test("Ctrl+A selects all listing items", async ({ page, checkForErrors }) => {
 
   checkForErrors();
 });
+
+
+test("offers individual download for a multi-file selection", async ({
+  page,
+  checkForErrors,
+}) => {
+  await openListing(page);
+
+  await nestedLabel(page, FILE_A).click();
+  await dispatchBubblingClick(nestedLabel(page, FILE_B), { ctrlKey: true });
+  await expectSelected(page, [FILE_A, FILE_B]);
+
+  await listingItem(page, FILE_A).click({ button: "right" });
+  await expect(page.locator('button[aria-label="Download"]')).toBeVisible();
+  await page.locator('button[aria-label="Download"]').click();
+
+  await expect(page.locator('button[aria-label="Download as zip"]')).toBeVisible();
+  await expect(page.locator('button[aria-label="Download as tar.gz"]')).toBeVisible();
+  await expect(page.locator('button[aria-label="Download"]')).toBeVisible();
+
+  checkForErrors();
+});
