@@ -17,11 +17,11 @@
       v-if="allowIndividual"
       type="button"
       class="button button--block"
-      :aria-label="$t('prompts.downloadIndividual')"
+       :aria-label="$t('general.download')"
       @click="handleFormatSelect('individual')"
       v-focus
     >
-      {{ $t('prompts.downloadIndividual') }}
+      {{ $t('general.download') }}
     </button>
   </div>
   <div v-if="!hasDownloads && (!currentPrompt?.confirm)" class="card-content lonely-message">
