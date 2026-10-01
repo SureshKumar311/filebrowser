@@ -17,7 +17,7 @@
       v-if="allowIndividual"
       type="button"
       class="button button--block"
-       :aria-label="$t('general.download')"
+      :aria-label="$t('general.download')"
       @click="handleFormatSelect('individual')"
       v-focus
     >
