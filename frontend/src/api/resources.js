@@ -285,6 +285,87 @@ export async function put(source, path, content = '') {
   return await resourceAction(source, path, 'PUT', content)
 }
 
+export async function downloadFilesIndividually(files, shareHash = "") {
+  if (!Array.isArray(files) || files.length < 2) {
+    throw new Error("Individual downloads require at least two files");
+  }
+  if (files.some((file) => !file || file.isDir || file.type === "directory")) {
+    throw new Error("Individual downloads support files only");
+  }
+
+  const source = shareHash ? null : files[0]?.source;
+  if (!shareHash && !source) {
+    throw new Error("File source is required for downloads");
+  }
+  if (!shareHash && files.some((file) => file.source !== source)) {
+    throw new Error("All files must be from the same source for downloads");
+  }
+
+  const queue = files.map((file) => ({
+    ...file,
+    name: file.name || file.path?.split("/").filter(Boolean).pop() || "download",
+  }));
+
+  for (const file of queue) {
+    const downloadId = downloadManager.add(file, shareHash);
+    const download = downloadManager.findById(downloadId);
+    if (!download) continue;
+
+    const abortController = new AbortController();
+    download.abortController = abortController;
+    downloadManager.setStatus(downloadId, "downloading");
+
+    try {
+      const params = {
+        file: file.path,
+        ...(shareHash && { hash: shareHash }),
+        ...(!shareHash && { source }),
+        sessionId: state.sessionId,
+      };
+      const apiPath = getApiPath("resources/download", params, false, !!shareHash);
+      const url = window.origin + apiPath;
+      const response = await fetch(url, shareDownloadFetchInit("GET", {
+        signal: undefined,
+      }));
+      if (!response.ok) {
+        const body = (await readDownloadErrorBody(response)).trim();
+        throw new Error(body || response.statusText || `HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      if (abortController.signal.aborted) {
+        downloadManager.setStatus(downloadId, "cancelled");
+        continue;
+      }
+
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = file.name || "download";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+
+      downloadManager.updateProgress(downloadId, blob.size || file.size || 0, blob.size || file.size || 0);
+      downloadManager.setStatus(downloadId, "completed");
+    } catch (error) {
+      if (abortController.signal.aborted) {
+        downloadManager.setStatus(downloadId, "cancelled");
+      } else {
+        downloadManager.setError(downloadId, error?.message || String(error));
+        notifyDownloadError(download?.name || file.name || "download", error);
+      }
+    } finally {
+      download.abortController = null;
+    }
+  }
+}
+
 export async function download(format, files, shareHash = "") {
   const downloadChunkSizeMb = state.user?.fileLoading?.downloadChunkSizeMb || 0
   const sizeThreshold = downloadChunkSizeMb * 1024 * 1024
