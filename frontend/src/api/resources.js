@@ -293,31 +293,31 @@ export function downloadFilesIndividually(files, shareHash = "") {
     throw new Error("Individual downloads support files only");
   }
 
-  const source = shareHash ? null : files[0]?.source;
-  if (!shareHash && !source) {
+  if (!shareHash && files.some((file) => !file.source)) {
     throw new Error("File source is required for downloads");
-  }
-  if (!shareHash && files.some((file) => file.source !== source)) {
-    throw new Error("All files must be from the same source for downloads");
   }
 
   // Keep each request as a normal browser download so large files are streamed
-  // by the browser instead of being buffered into JavaScript memory.
+  // by the browser instead of being buffered into JavaScript memory. Opening
+  // each link in its own browsing context prevents later downloads replacing
+  // earlier navigations and lets the browser apply its multiple-download policy.
   for (const file of files) {
     const params = {
       file: file.path,
       ...(shareHash && { hash: shareHash }),
-      ...(!shareHash && { source }),
+      ...(!shareHash && { source: file.source }),
       sessionId: state.sessionId,
     };
     const apiPath = getApiPath("resources/download", params, false, !!shareHash);
     const link = document.createElement("a");
     link.href = window.origin + apiPath;
+    link.download = file.name || file.path.slice(file.path.lastIndexOf("/") + 1);
+    link.target = "_blank";
     link.style.display = "none";
-    link.rel = "noopener";
+    link.rel = "noopener noreferrer";
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    window.setTimeout(() => link.remove(), 1000);
   }
 }
 
